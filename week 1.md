@@ -403,5 +403,5 @@ This solution initially had a couple more CTEs until I learnt you can add a wind
 
 ## Conclusion - Insights and Recommendations
 
-Customers who joined the loyalty scheme have purchased more than the customer who did not join the loyalty scheme. Ramen is the most popular product. The loyalty scheme could be used to boost purchases of less popular products. Two of the customers bought curry in their first order; maybe the curry product entices people to try the diner. However, this case study has only used a very small amount of data. Analysis of a larger customer group and time frame would be needed to give further backing to these insights.
+Customers who joined the loyalty scheme have purchased more than the customer who did not join the loyalty scheme. Ramen is the most popular product. More ramen options could be popular with customers. The loyalty scheme could be used to boost purchases of less popular products. Two of the customers bought curry in their first order; maybe the curry product entices people to try the diner. However, this case study has only used a very small amount of data. Analysis of a larger customer group and time frame would be needed to give further backing to these insights.
 
