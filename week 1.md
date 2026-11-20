@@ -9,6 +9,11 @@ This case study included three tables:
 
 <img width="429" height="270" alt="image" src="https://github.com/user-attachments/assets/aba8e458-7c5d-4a1e-9c71-83fc1a7af8f0" />
 
+\
+**Assumptions**
+- Purchases made on the same day were purchased in one order.
+- If the customer joined the loyalty scheme on a day they made a purchase, this purchase is counted as part of the loyalty scheme.
+
 ## Case Study Questions
 **Question 1**: What is the total amount each customer spent at the restaurant?
 
@@ -64,24 +69,27 @@ WITH purchase_order AS
 	(SELECT 
 		customer_id,
 		product_id,
-		ROW_NUMBER() OVER(PARTITION BY customer_id) AS transaction_id
+		DENSE_RANK() OVER(PARTITION BY customer_id ORDER BY order_date) AS transaction_id
 	FROM dannys_diner.sales)
-SELECT
+SELECT DISTINCT
 	customer_id,
 	product_name
 FROM purchase_order AS p
 JOIN dannys_diner.menu AS m
 ON p.product_id = m.product_id
-WHERE transaction_id = 1;
+WHERE transaction_id = 1
+ORDER BY 
+	customer_id;
 ```
 
 |customer_id|product_name|
 |---|---|
+|A|curry|
 |A|sushi|
 |B|curry|
 |C|ramen|
 
-The ROW_NUMBER() window function is used as some customers bought several products on the same day; the row number gives an order to their purchases. This is added in a CTE due to the order of execution and window functions not being allowed in the WHERE clause. The JOIN is used to get the product name. Each customer bought a different product first.
+The DENSE_RANK() window function gives an order to customer purchases. This is added in a CTE due to the order of execution and window functions not being allowed in the WHERE clause. The JOIN is used to get the product name. Curry was bought by two customers in their first order.
 
 \
 **Question 4**: What is the most purchased item on the menu and how many times was it purchased by all customers?
@@ -151,7 +159,7 @@ WITH purchase_order AS
 		customer_id,
 		product_id,
 		order_date,
-		ROW_NUMBER() OVER(PARTITION BY customer_id) AS transaction_id
+		DENSE_RANK() OVER(PARTITION BY customer_id ORDER BY order_date) AS transaction_id
 	FROM dannys_diner.sales)
 SELECT 
 	po1.customer_id,
@@ -176,7 +184,7 @@ ORDER BY
 |A|curry|
 |B|sushi|
 
-The CTE is the same as Question 3 to give an order to the customer's purchases. The JOINS retrieve the date the customer joined the loyalty scheme and the product name. The correlated subquery chooses the transaction for each customer that was made first after joining the loyalty scheme. Customers bought different products after joining the loyalty scheme.
+The CTE is the same as Question 3 to give an order to the customers's purchases. The JOINS retrieve the date the customer joined the loyalty scheme and the product name. The correlated subquery chooses the transaction for each customer that was made first after joining the loyalty scheme. Customers bought different products after joining the loyalty scheme.
 
 \
 **Question 7**: Which item was purchased just before the customer became a member?
@@ -187,7 +195,7 @@ WITH purchase_order AS
 		customer_id,
 		product_id,
 		order_date,
-		ROW_NUMBER() OVER(PARTITION BY customer_id) AS transaction_id
+		DENSE_RANK() OVER(PARTITION BY customer_id ORDER BY order_date) AS transaction_id
 	FROM dannys_diner.sales)
 SELECT 
 	po1.customer_id,
@@ -209,10 +217,11 @@ ORDER BY
 
 |customer_id|product_name|
 |---|---|
+|A|sushi|
 |A|curry|
 |B|sushi|
 
-This query is very similar to Question 6. The only different is in the correlated subquery so it returns the transaction made just before joining the loyalty scheme. The customers bought same product as they did after they did just after joining the loyalty scheme.
+This query is very similar to Question 6. The only different is in the correlated subquery so it returns the transaction made just before joining the loyalty scheme. The customers bought similar products as they did after they did just after joining the loyalty scheme. Both customers bough sushi before they joined the loyalty scheme.
 
 \
 **Question 8**: What is the total items and amount spent for each member before they became a member?
@@ -346,3 +355,53 @@ The CASE expression is used to create the members column, showing if the custome
 **Question 2**: Rank All Things
 
 ```sql
+WITH joins AS
+	(SELECT
+		s.customer_id,
+		order_date,
+		product_name,
+		price,
+		CASE WHEN join_date IS NULL OR order_date < join_date THEN 'N'
+		ELSE 'Y'
+		END AS member
+	FROM dannys_diner.sales AS s
+	LEFT JOIN dannys_diner.members AS mem
+	ON s.customer_id = mem.customer_id
+	JOIN dannys_diner.menu AS m
+	ON s.product_id = m.product_id)
+SELECT 
+	customer_id,
+	order_date,
+	product_name,
+	price,
+	member,
+	CASE WHEN member ='Y' THEN DENSE_RANK() OVER(PARTITION BY customer_id, member ORDER BY order_date)
+	ELSE NULL 
+	END AS ranking
+FROM joins;
+```
+
+|customer_id|order_date|product_name|price|member|ranking|
+|---|---|---|---|---|---|
+|A|2021-01-01|sushi|10|N|NULL|
+|A|2021-01-01|curry|15|N|NULL|
+|A|2021-01-07|curry|15|Y|1|
+|A|2021-01-10|ramen|12|Y|2|
+|A|2021-01-11|ramen|12|Y|3|
+|A|2021-01-11|ramen|12|Y|3|
+|B|2021-01-01|curry|15|N|NULL|
+|B|2021-01-02|curry|15|N|NULL|
+|B|2021-01-04|sushi|10|N|NULL|
+|B|2021-01-11|sushi|10|Y|1|
+|B|2021-01-16|ramen|12|Y|2|
+|B|2021-02-01|ramen|12|Y|3|
+|C|2021-01-01|ramen|12|N|NULL|
+|C|2021-01-01|ramen|12|N|NULL|
+|C|2021-01-07|ramen|12|N|NULL|
+
+This solution initially had a couple more CTEs until I learnt you can add a window function in a CASE expression. The ranking column gives a cumulative total for the number of orders made by loyalty scheme members. Both customers have made 3 purchases since being loyalty scheme members.
+
+## Conclusion - Insights and Recommendations
+
+Customers who joined the loyalty scheme have purchased more than the customer who did not join the loyalty scheme. Ramen is the most popular product. The loyalty scheme could be used to boost purchases of less popular products. Two of the customers bought curry in their first order; maybe the curry product entices people to try the diner. However, this case study has only used a very small amount of data. Analysis of a larger customer group and time frame would be needed to give further backing to these insights.
+
